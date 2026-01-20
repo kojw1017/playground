@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: playground-api # Jaeger?? ?? ??? ??
+
+  # 1. MySQL ??
+  datasource:
+    url: jdbc:mysql://localhost:3306/playground?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  # 2. Redis ??
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  # 3. Kafka ??
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: playground-group
+      auto-offset-reset: earliest
+
+# 4. ??? ?? (Actuator + Tracing)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus, health, info, metrics
+  tracing:
+    sampling:
+      probability: 1.0 # ???: ?? ?? ?? (???? ??? ?)
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces # Jaeger? ??
