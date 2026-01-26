@@ -1,0 +1,111 @@
+# ============================================================================
+# Kafka 속성 교육 - 성능 및 설정 가이드
+# ============================================================================
+
+spring:
+  kafka:
+    # 1. 브로커 연결 설정
+    bootstrap-servers: localhost:9092
+
+    # Producer 설정
+    producer:
+      # 배치 처리 설정: 성능 최적화
+      batch-size: 16384              # 16KB (기본값) - 배치 크기
+      linger-ms: 10                   # 10ms 대기 후 전송 (배치가 안 차도 전송)
+      buffer-memory: 33554432         # 32MB (기본값) - 전체 버퍼 크기
+
+      # 압축 및 직렬화
+      compression-type: snappy        # 압축: snappy, lz4, gzip (네트워크 비용 감소)
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+      # 신뢰성 설정
+      acks: all                        # acks=all: 모든 복제본이 받을 때까지 대기 (최고 신뢰도)
+      retries: 2147483647             # 재시도 횟수 (기본값이 매우 높음)
+      max-in-flight-requests-per-connection: 1  # 순서 보장을 위해 1로 설정
+
+      # 트랜잭션 설정 (Exactly-once 처리)
+      transaction-id-prefix: playground-tx-
+
+      # 타임아웃
+      request-timeout-ms: 30000       # 30초
+
+      # 고급: 파티셔닝 및 성능
+      properties:
+        linger.ms: 10
+        batch.size: 16384
+        # 메모리 버퍼 크기
+        buffer.memory: 33554432
+        # Idempotent Producer (중복 제거)
+        enable.idempotence: true
+        # Exactly Once 처리
+        acks: all
+
+    # Consumer 설정
+    consumer:
+      bootstrap-servers: localhost:9092
+      group-id: playground-group
+
+      # 커밋 전략
+      auto-offset-reset: earliest      # 없는 오프셋: earliest(처음) 또는 latest(최신)
+      enable-auto-commit: false        # 수동 커밋으로 정확성 보장
+      auto-commit-interval-ms: 1000    # auto-commit 활성 시 1초 간격
+
+      # 배치 처리
+      max-poll-records: 500            # 한 번에 가져올 메시지 수
+      max-poll-interval-ms: 300000     # 5분: poll 간 최대 시간
+      session-timeout-ms: 30000        # 30초: 하트비트 타임아웃
+
+      # 직렬화
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+
+      # 고급 설정
+      properties:
+        spring.json.trusted.packages: "*"  # JSON 역직렬화 신뢰 패키지
+        fetch.min.bytes: 1024              # 최소 1KB 받을 때까지 대기
+        fetch.max.wait.ms: 500             # 500ms 대기 (처리량 vs 지연 시간 트레이드오프)
+        max.partition.fetch.bytes: 1048576 # 1MB: 최대 메시지 크기
+
+    # 리스너 설정 (컨슈머 그룹)
+    listener:
+      type: batch              # batch: 여러 메시지, record: 단일 메시지
+      poll-timeout: 3000       # 3초
+      concurrency: 3           # 3개 스레드로 병렬 처리
+
+# 관측성 설정
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus, health, info, metrics
+  metrics:
+    tags:
+      application: playground-kafka
+
+# ============================================================================
+# 핵심 개념 정리
+# ============================================================================
+#
+# 1. Producer 성능 최적화
+#    - batch-size + linger-ms: 배치 처리로 처리량 증가
+#    - compression-type: 네트워크 대역폭 절감
+#    - acks 레벨: 신뢰도 vs 지연 시간 트레이드오프
+#
+# 2. Consumer 신뢰성
+#    - auto-offset-reset: 오프셋 손실 시 처리 전략
+#    - enable-auto-commit: false로 설정 시 메시지 처리 후 수동 커밋
+#    - max-poll-records: 배치 처리로 효율성 증가
+#
+# 3. 트랜잭션 (Exactly-once Semantics)
+#    - enable.idempotence: true → 중복 메시지 제거
+#    - transaction-id-prefix: 트랜잭션 ID 생성
+#    - 메시지가 정확히 한 번만 처리됨을 보장
+#
+# 4. 파티셔닝 (분산 처리)
+#    - 같은 Key → 같은 Partition (순서 보장)
+#    - Consumer Group이 여러 Partition을 병렬 처리
+#
+# 5. 모니터링
+#    - Prometheus 메트릭으로 Lag, 처리 시간 등 추적
+#    - Jaeger로 분산 추적 수행
